@@ -35,122 +35,92 @@ class PlayerControllerMinimax(PlayerController):
             self.t = time.time()
             best_move = None
             i = 1
-            printVal = 0
+            timeOut = False
             val = float('-inf')
-            try:
-                while True:
-                    printVal, move= self.search_best_next_move(currNode = node, depthLeft = i, alpha = float('-inf'), beta = float('inf'), greenBoat = True)
-                    #if printVal > val:
+            while not timeOut:
+                printVal, move, timeOut = self.search_best_next_move(currNode = node, depthLeft = i, alpha = float('-inf'), beta = float('inf'), greenBoat = True)
+                if printVal > val:
                     best_move = move
                     val = printVal
-                    i += 1
-                    printD("INNER Depth: " + str(i-1) + " Move: " + str(move) + " Value: " + str(printVal))
-            except:
-                # Execute next action
-                printD("OUTER Depth: " + str(i) + " Move: " + str(best_move) + " Value: " + str(printVal))
-                self.sender({"action": best_move, "search_time": None})
-
-
+                #printD("@ @ @ @ @ INNER Depth: " + str(i) + " Has the Best Move: " + move + " With Score: " + str(printVal))
+                i += 1
+            #printD("- - - - OUTER Depth: " + str(i) + " Has the Best Move: " + move + " With Score: " + str(printVal))
+            self.sender({"action": best_move, "search_time": None})
 
     def euclDistance(self, fishPos, hookPos):
         dist = ((fishPos[0] - hookPos[0])**2) + ((fishPos[1] - hookPos[1])**2)
         return dist
 
-    def mhDistance(self, fishPos, hookPos):
-        xDist = abs(fishPos[0]-hookPos[0])
-        yDist = abs(fishPos[1]-hookPos[1])
-        
-        if xDist > (20 - xDist):
-            return (20 - xDist) + yDist
-        else:
-            return xDist + yDist
-
-
     def evaluate(self, currNode):
-        fishCaught = currNode.state.get_caught()
-        currScores = currNode.state.get_player_scores()
+        fishCaught = currNode.state.get_caught()		
+        currScores = currNode.state.get_player_scores()		
+        fishPos = currNode.state.get_fish_positions()		
+        hookPos = currNode.state.get_hook_positions()		
         fishScores = currNode.state.get_fish_scores()
 
-
-        if fishCaught[0] is None:
-            greenScore = self.fishDistanceValue(currNode, 0)
-                        
-        else:
+        greenScore = 0		
+        redScore = 0		
+        dist = 0			
+        if fishCaught[0] is None:		
+            for fish in fishPos:		
+                if fishScores[fish] > 0:		
+                    dist = self.euclDistance(fishPos[fish], hookPos[0])
+                    if dist == 0:	
+                        greenScoreTemp = float('inf')	
+                    else:
+                        greenScoreTemp = fishScores[fish]*math.exp(-dist)
+                    if greenScoreTemp > greenScore:
+                        greenScore = greenScoreTemp			
+                                
+        else:		
             greenScore = fishScores[fishCaught[0]]
-            # printD("TYPE TO SCORE: " + str(TYPE_TO_SCORE[fishCaught[0]]))
-            # printD("Arrayen: " + str(fishScores[fishCaught[0]]))
-
         
-        if fishCaught[1] is None:
-            redScore = self.fishDistanceValue(currNode, 1)
-        else:
-            redScore = fishScores[fishCaught[1]]
+        if fishCaught[1] is None:		
+            redScore = 0
+                                
+        else:		
+            redScore = fishScores[fishCaught[0]]
 
-        
-        
-
-        eval = currScores[0] + greenScore - currScores[1] - redScore
+        eval = 2*currScores[0] + greenScore - currScores[1]*2 -redScore
+        #printD("Current Node: " + str(ACTION_TO_STR[currNode.move]) + " has the Score: " + str(eval))		
         return eval
 
-    def fishDistanceValue(self, currNode, p):
-        fishPos = currNode.state.get_fish_positions()
-        hookPos = currNode.state.get_hook_positions()
-        fishScores = currNode.state.get_fish_scores()
-        player = "BLUE"
-        if p == 0:
-            player = "GREEN"
-        else:
-            player = "RED"
-        dist = 0
-        score = 0
-        for fish in fishPos:
-            if fishScores[fish] > 0:
-                dist = self.euclDistance(fishPos[fish], hookPos[p])
-                #if p == 0:
-                #    print(player + " Fish pos: " + str(fishPos[fish]) + " Distance: " + str(dist))
-                if dist == 0:	
-                    scoreTemp = float('inf')	
-                else:
-                    #if p == 0:
-                        #printD(player + " " + ACTION_TO_STR[currNode.move] + " Dist: " + str(dist))
-                    scoreTemp = fishScores[fish]/(dist)
-                if scoreTemp > score:
-                    score = scoreTemp
-        return score
     def search_best_next_move(self, currNode, depthLeft, alpha, beta, greenBoat):
 
         if time.time() - self.t >= 0.055:
-            raise TimeoutError
-
-        children = currNode.compute_and_get_children()
-        children.sort(key=self.evaluate, reverse=True)
-        
-        if depthLeft == 0 or len(children) == 0:
-            #printD("EVALUATE NODE:::: " + ACTION_TO_STR[currNode.move])
             eval = self.evaluate(currNode)
-            if currNode is None:
+            if currNode.move is None:
                 nextAct = 0
             else:
                 nextAct = ACTION_TO_STR[currNode.move]
-            return eval, nextAct
+            return eval, nextAct, True
+
+        children = currNode.compute_and_get_children()
+        #children.sort(key=self.evaluate, reverse=True)
+        
+        if depthLeft == 0 or len(children) == 0:
+            eval = self.evaluate(currNode)
+            nextAct = ACTION_TO_STR[currNode.move]
+            return eval, nextAct, False
 
         if greenBoat:
             maxEval = float('-inf')
             nextAct = "stay"
             for child in children:
-                eval, myAct= self.search_best_next_move(child, depthLeft - 1, alpha, beta, False)
+                eval, myAct, timeOut = self.search_best_next_move(child, depthLeft - 1, alpha, beta, False)
                 if eval > maxEval:
                     maxEval = eval
                     nextAct = myAct
                 alpha = max(alpha, maxEval)
                 if beta <= alpha:
                     break
-            return maxEval, nextAct
+            #printD("DEPTH: " + str(depthLeft) + " Green: " + str(maxEval) + " For MOVE: " + nextAct)
+            return maxEval, nextAct, timeOut
         else:
             minEval = float('inf')
             nextAct = "stay"
             for child in children:
-                eval, myAct = self.search_best_next_move(child, depthLeft - 1, alpha, beta, True)
+                eval, myAct, timeOut = self.search_best_next_move(child, depthLeft - 1, alpha, beta, True)
 
                 if eval < minEval:
                     minEval = eval
@@ -158,5 +128,6 @@ class PlayerControllerMinimax(PlayerController):
                 beta = min(minEval, beta)
                 if beta <= alpha:
                     break
-            return minEval, nextAct
+            #printD("Red: " + str(minEval) + " For MOVE: " + nextAct)
+            return minEval, nextAct, timeOut
 
