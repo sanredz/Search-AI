@@ -75,13 +75,7 @@ class PlayerControllerMinimax(PlayerController):
         else:		
             greenScore = fishScores[fishCaught[0]]
         
-        if fishCaught[1] is None:		
-            redScore = 0
-                                
-        else:		
-            redScore = fishScores[fishCaught[0]]
-
-        eval = 2*currScores[0] + greenScore - currScores[1]*2 -redScore
+        eval = 2*currScores[0] + greenScore - currScores[1]*2
         #printD("Current Node: " + str(ACTION_TO_STR[currNode.move]) + " has the Score: " + str(eval))		
         return eval
 
